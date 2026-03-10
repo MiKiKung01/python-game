@@ -1,0 +1,57 @@
+{
+    "navbar": {
+        "learn": "Learn",
+        "debug": "Debug Lab",
+        "challenge": "Challenge",
+        "shop": "Shop",
+        "game_mode": "GAME MODE"
+    },
+    "hero": {
+        "title": "Python",
+        "subtitle": "Learn programming fundamentals such as variables, control flow, and loops with the world's most popular and versatile coding language – Python!"
+    },
+    "mascot": {
+        "welcome": "Welcome to your learning path! Here you'll see all the lessons lined up. Start from the first one and unlock new knowledge step by step."
+    },
+    "footer": {
+        "title": "What you'll build",
+        "subtitle": "Gain the skills you need to build full-fledged, real-world projects. Plus, receive personalized code reviews from experts who are here to support your journey."
+    },
+    "languages": {
+        "en": "English",
+        "th": "ไทย"
+    },
+    "shop": {
+        "sidebar": {
+            "title": "Show only",
+            "themes": "Web Themes",
+            "cursors": "Cursor Effects",
+            "clicks": "Click Effects"
+        },
+        "card": {
+            "free": "Free",
+            "try": "Try"
+        },
+        "preview": {
+            "title": "Previewing",
+            "cancel": "Cancel",
+            "confirm": "Use this theme"
+        },
+        "items": {
+            "theme-default": "Lofi Dark (Default)",
+            "theme-sakura": "Sakura Light",
+            "theme-ocean": "Ocean Deep",
+            "cursor-sparkle": "Sparkle Trail",
+            "cursor-ghost": "Ghost Trail",
+            "click-ripple": "Water Ripple",
+            "click-burst": "Star Burst"
+        },
+        "exercise": {
+            "title": "Exercise",
+            "hint": {
+                "title": "Hint",
+                "mascot_tooltip": "Pssst! Stuck? Click the box below for a hint! Meow~"
+            }
+        }
+    }
+}

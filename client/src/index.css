@@ -1,0 +1,285 @@
+/* ===== Google Fonts ===== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== Friend's Learning App Theme Variables ===== */
+:root,
+[data-theme="default"] {
+    --color-bg-primary: #1a202c;
+    --color-bg-secondary: #2d3748;
+    --color-text-primary: #edf2f7;
+    --color-text-secondary: #a0aec0;
+    --color-accent: #ffd43b;
+    --color-primary: #3776ab;
+}
+
+[data-theme="sakura"] {
+    --color-bg-primary: #fff5f7;
+    --color-bg-secondary: #ffffff;
+    --color-text-primary: #2d3748;
+    --color-text-secondary: #718096;
+    --color-accent: #e53e3e;
+    --color-primary: #d69e2e;
+}
+
+[data-theme="ocean"] {
+    --color-bg-primary: #0a192f;
+    --color-bg-secondary: #172a45;
+    --color-text-primary: #ccd6f6;
+    --color-text-secondary: #8892b0;
+    --color-accent: #64ffda;
+    --color-primary: #64ffda;
+}
+
+/* ===== Global Reset ===== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--t-bg);
+    color: var(--t-text);
+    overflow-x: hidden;
+    transition: background-color 0.4s ease, color 0.3s ease;
+}
+
+/* ===== Custom Scrollbar ===== */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--t-scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--t-scrollbar-thumb);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--t-scrollbar-thumb-hover);
+}
+
+/* ===== Theme-Aware Component Classes ===== */
+@layer components {
+    .glass-panel {
+        background: var(--t-glass);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--t-glass-border);
+        transition: background 0.3s ease, border-color 0.3s ease;
+    }
+
+    .glass-panel-light {
+        background: var(--t-card);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid var(--t-border);
+    }
+
+    .glass-button {
+        background: var(--t-glass-button);
+        backdrop-filter: blur(8px);
+        border: 1px solid var(--t-border);
+        transition: all 0.2s ease;
+    }
+
+    .glass-button:hover {
+        background: var(--t-glass-button-hover);
+        border-color: var(--t-border-accent);
+        box-shadow: 0 0 15px var(--t-glow);
+    }
+
+    /* ===== Neon Text Effects ===== */
+    .neon-text-blue {
+        color: var(--t-accent);
+        text-shadow: 0 0 7px var(--t-accent), 0 0 10px var(--t-accent);
+    }
+
+    .neon-text-green {
+        color: var(--t-success);
+        text-shadow: 0 0 7px var(--t-success), 0 0 10px var(--t-success);
+    }
+
+    .neon-text-orange {
+        color: #F97316;
+        text-shadow: 0 0 7px #F97316, 0 0 15px #F97316;
+    }
+
+    /* ===== CRT Monitor Effect ===== */
+    .crt-overlay {
+        position: relative;
+    }
+
+    .crt-overlay::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.05) 2px, rgba(0, 0, 0, 0.05) 4px);
+        pointer-events: none;
+        z-index: 10;
+    }
+
+    .crt-overlay::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(var(--t-boot-scanline) 50%, rgba(0, 0, 0, 0.05) 50%);
+        background-size: 100% 4px;
+        animation: scanline 8s linear infinite;
+        pointer-events: none;
+        z-index: 10;
+        opacity: 0.3;
+    }
+
+    /* ===== Boot Text Typing ===== */
+    .boot-text {
+        font-family: 'JetBrains Mono', monospace;
+        overflow: hidden;
+        white-space: nowrap;
+        animation: typing 0.8s steps(40) forwards;
+    }
+
+    /* ===== Background Patterns ===== */
+    .bg-grid-pattern {
+        background-image:
+            linear-gradient(var(--t-grid-line) 1px, transparent 1px),
+            linear-gradient(90deg, var(--t-grid-line) 1px, transparent 1px);
+        background-size: 40px 40px;
+    }
+
+    .bg-dots-pattern {
+        background-image: radial-gradient(var(--t-dot-color) 1px, transparent 1px);
+        background-size: 20px 20px;
+    }
+
+    /* ===== Animated Gradient Background ===== */
+    .bg-animated-gradient {
+        background: linear-gradient(135deg,
+                var(--t-gradient-1) 0%,
+                var(--t-gradient-2) 25%,
+                var(--t-gradient-3) 50%,
+                var(--t-gradient-2) 75%,
+                var(--t-gradient-1) 100%);
+        background-size: 300% 300%;
+        animation: gradientShift 12s ease infinite;
+        transition: background 0.5s ease;
+    }
+
+    /* ===== Neon Border Glow ===== */
+    .neon-border {
+        box-shadow: 0 0 5px var(--t-glow), inset 0 0 5px var(--t-glow);
+        border: 1px solid var(--t-border-accent);
+    }
+
+    .neon-border-orange {
+        box-shadow: 0 0 5px rgba(249, 115, 22, 0.3), inset 0 0 5px rgba(249, 115, 22, 0.1);
+        border: 1px solid rgba(249, 115, 22, 0.3);
+    }
+
+    /* ===== Cat Elements ===== */
+    .cat-silhouette {
+        position: relative;
+    }
+
+    .cat-silhouette::after {
+        content: '🐱';
+        position: absolute;
+        font-size: 14px;
+        opacity: 0.6;
+        filter: saturate(1.5);
+    }
+
+    /* ===== Shimmer Effect ===== */
+    .shimmer-effect {
+        background: linear-gradient(90deg, transparent 0%, var(--t-shimmer) 50%, transparent 100%);
+        background-size: 200% 100%;
+        animation: shimmer 2s linear infinite;
+    }
+
+    /* ===== Stagger Animation Delays ===== */
+    .stagger-1 {
+        animation-delay: 0.05s;
+    }
+
+    .stagger-2 {
+        animation-delay: 0.1s;
+    }
+
+    .stagger-3 {
+        animation-delay: 0.15s;
+    }
+
+    .stagger-4 {
+        animation-delay: 0.2s;
+    }
+
+    .stagger-5 {
+        animation-delay: 0.25s;
+    }
+
+    .stagger-6 {
+        animation-delay: 0.3s;
+    }
+
+    .stagger-7 {
+        animation-delay: 0.35s;
+    }
+
+    .stagger-8 {
+        animation-delay: 0.4s;
+    }
+}
+
+/* ===== Animations ===== */
+@keyframes gradientShift {
+
+    0%,
+    100% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+}
+
+@keyframes scanline {
+    0% {
+        transform: translateY(-100%);
+    }
+
+    100% {
+        transform: translateY(100vh);
+    }
+}
+
+@keyframes typing {
+    0% {
+        width: 0;
+    }
+
+    100% {
+        width: 100%;
+    }
+}
+
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-12px);
+    }
+}
