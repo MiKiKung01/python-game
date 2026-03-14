@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export default function Matchmaking() {
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const [seconds, setSeconds] = useState(0);
     const [foundPlayers, setFoundPlayers] = useState([]);
     const [isReady, setIsReady] = useState(false);
@@ -51,14 +53,14 @@ export default function Matchmaking() {
                         </div>
                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-xl opacity-50 animate-cat-tail origin-top">🐱</div>
                     </div>
-                    <h2 className="text-2xl font-bold text-t-text mb-2">กำลังหาห้อง...</h2>
+                    <h2 className="text-2xl font-bold text-t-text mb-2">{t('matchmaking.searching')}</h2>
                     <p className="text-3xl font-mono text-t-accent mb-4">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</p>
-                    <p className="text-t-muted text-sm">Searching for available rooms</p>
+                    <p className="text-t-muted text-sm">{t('matchmaking.findingRoomText')}</p>
                 </div>
             ) : (
                 <div className="w-full max-w-4xl z-10 px-4">
                     <h2 className="text-3xl text-center mb-8 font-black animate-bounce-in">
-                        <span className="bg-gradient-to-r from-t-success to-green-400 bg-clip-text text-transparent">MATCH FOUND!</span>
+                        <span className="bg-gradient-to-r from-t-success to-green-400 bg-clip-text text-transparent">{t('matchmaking.matchFound')}</span>
                     </h2>
                     <div className="flex justify-center gap-4 mb-8">
                         {foundPlayers.map((p, i) => (
@@ -74,7 +76,7 @@ export default function Matchmaking() {
                         <button onClick={handleReady} disabled={isReady}
                             className={`px-10 py-4 text-xl font-bold rounded-2xl transition-all duration-300 active:scale-95
                                 ${isReady ? 'bg-t-success text-white shadow-[0_0_25px_var(--t-glow)]' : 'bg-red-500 hover:bg-red-400 text-white hover:shadow-[0_0_25px_rgba(255,0,0,0.2)]'}`}>
-                            {isReady ? "✓ READY!" : "ACCEPT"}
+                            {isReady ? t('matchmaking.ready', '✓ READY!') : t('matchmaking.joinRoomBtn')}
                         </button>
                     </div>
                 </div>

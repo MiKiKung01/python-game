@@ -39,14 +39,10 @@ export default function DesktopPage() {
     const [bootPhase, setBootPhase] = useState(0);
     const [bootLines, setBootLines] = useState([]);
     const [bootProgress, setBootProgress] = useState(0);
-    const [userData, setUserData] = useState(null);   // user จาก localStorage
-    const [simState, setSimState] = useState(null);   // state จาก server (เงิน วัน ฯลฯ)
+    const [userData, setUserData] = useState(null);
+    const [day, setDay] = useState(1);
     const [energy, setEnergy] = useState(100);
-    const [isEndingDay, setIsEndingDay] = useState(false);
-    const [dailySummary, setDailySummary] = useState({
-        earned: 0, spent: 0, events: [],
-        rentDue: false, rentPaid: false, rentDeducted: 0, daysUntilRent: 7, day: 1
-    });
+    const [dailySummary, setDailySummary] = useState({ earned: 0, spent: 0, events: [] });
 
     // --- 2. JOB SYSTEM STATE ---
     const [activeJob, setActiveJob] = useState(null);
@@ -54,35 +50,11 @@ export default function DesktopPage() {
     const [jobNotification, setJobNotification] = useState(false);
     const lastJobCountRef = useRef(0);
 
+    const RENT_DUE_DAY = 7;
     const RENT_AMOUNT = 3000;
-    const RENT_CYCLE = 7;
-    // ดึงค่าจาก simState (server)
-    const day = simState?.current_day || 1;
-    const currentMoney = parseFloat(simState?.sim_money || 0);
 
     // --- 3. UI STATE ---
-    // --- เวลาในเกม ---
-    // 09:00 → 21:00 = 12 ชม.เกม ใน 36 นาทีจริง
-    // 3 วินาทีจริง = 1 นาทีเกม (720 นาทีเกม = 36 นาทีจริง)
-    const GAME_START_HOUR = 9;
-    const GAME_END_HOUR   = 21;
-    const REAL_MS_PER_GAME_MINUTE = 3000; // ms จริงต่อ 1 นาทีเกม
-
-    const [gameMinutes, setGameMinutes] = useState(0); // 0 = 09:00, 720 = 21:00
-
-    // --- helper: แปลง gameMinutes → { hour, minute, display, progress } ---
-    const getGameTime = (mins) => {
-        const totalMins = GAME_START_HOUR * 60 + mins;
-        const h = Math.floor(totalMins / 60) % 24;
-        const m = totalMins % 60;
-        const display = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-        const progress = Math.min(100, (mins / 720) * 100); // 720 = 12 ชม. * 60
-        const isEvening = h >= 18;  // 18:00+ = กลางคืน
-        const isNight   = h >= 20;  // 20:00+ = ดึกมาก
-        return { h, m, display, progress, isEvening, isNight };
-    };
-    const gameTime = getGameTime(gameMinutes);
-
+    const [currentTime, setCurrentTime] = useState(new Date());
     const [windows, setWindows] = useState([]);
     const [minimizedWindows, setMinimizedWindows] = useState([]);
     const [activeWindowId, setActiveWindowId] = useState(null);
@@ -129,69 +101,29 @@ export default function DesktopPage() {
     // --- 6. DESKTOP EFFECTS ---
     useEffect(() => {
         if (gameState !== "DESKTOP") return;
-
-        // Reset เวลาเกมเป็น 09:00 ตอนเริ่มวันใหม่
-        setGameMinutes(0);
-
-        // fetchSimState
-        const fetchSimState = () => {
-            const uid = userData?.user_id || userData?.id;
-            if (!uid) return;
-            axios.get(`http://localhost:3001/simulation/state/${uid}`)
-                .then(r => setSimState(r.data))
-                .catch(() => {});
-        };
-        fetchSimState();
-
-        // ── Game Clock ──────────────────────────────────────────────
-        // ทุก REAL_MS_PER_GAME_MINUTE (3000ms) = 1 นาทีเกม
-        // 09:00 → 21:00 = 720 นาทีเกม = 36 นาทีจริง
-        const clockTimer = setInterval(() => {
-            setGameMinutes(prev => {
-                const next = prev + 1;
-                // ถึง 21:00 (720 นาที) → จบวันอัตโนมัติ
-                if (next >= 720) {
-                    clearInterval(clockTimer);
-                    return 720;
-                }
-                return next;
-            });
-        }, REAL_MS_PER_GAME_MINUTE);
-
-        // ── Energy Drain ──────────────────────────────────────────────
-        // ลด 100 หน่วยใน 36 นาที → ลดทุก 3 วินาที ครั้งละ 100/720 ≈ 0.139
-        // ใช้ REAL_MS_PER_GAME_MINUTE เพื่อให้ sync กับ clock
-        const ENERGY_DRAIN_PER_TICK = 100 / 720; // ≈ 0.139 ต่อนาทีเกม
+        const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
         const energyTimer = setInterval(() => {
-            setEnergy(prev => {
-                const next = Math.max(0, prev - ENERGY_DRAIN_PER_TICK);
-                if (next <= 0) handleShutdown(true);
-                return next;
-            });
-        }, REAL_MS_PER_GAME_MINUTE);
+            setEnergy(prev => { if (prev <= 0) { handleShutdown(true); return 0; } return Math.max(0, prev - 0.2); });
+        }, 1000);
 
-        // ── System Polling (server sync) ─────────────────────────────
         const systemTimer = setInterval(() => {
-            const uid = userData?.user_id || userData?.id;
-            if (!uid) return;
-            fetchSimState();
-            axios.get('http://localhost:3001/jobs/available').then(r => {
-                const c = r.data.length;
-                if (c > lastJobCountRef.current) setJobNotification(true);
-                if (c === 0) setJobNotification(false);
-                lastJobCountRef.current = c;
-            }).catch(() => {});
-        }, 15000); // sync ทุก 15 วินาทีจริง (= 5 นาทีเกม)
+            if (userData?.id) {
+                axios.get(`http://localhost:3001/simulation/status/${userData.id}`).then(r => setUserData(p => ({ ...p, ...r.data }))).catch(() => {});
+                axios.get('http://localhost:3001/jobs/available').then(r => {
+                    const c = r.data.length;
+                    if (c > lastJobCountRef.current) setJobNotification(true);
+                    if (c === 0) setJobNotification(false);
+                    lastJobCountRef.current = c;
+                }).catch(() => {});
+            }
+        }, 3000);
 
-        // ── Onboard ──────────────────────────────────────────────────
         let onboardTimer;
         if (!hasOnboarded) {
             onboardTimer = setTimeout(() => {
                 if (!windows.find(w => w.id === 'jobs')) {
                     openApp('jobs', 'DevFreelance', 'jobs');
-                    setHasOnboarded(true);
-                    localStorage.setItem('hasOnboarded', 'true');
-                    setJobNotification(false);
+                    setHasOnboarded(true); localStorage.setItem('hasOnboarded', 'true'); setJobNotification(false);
                 }
             }, 1500);
         }
@@ -199,22 +131,8 @@ export default function DesktopPage() {
         const handleEsc = (e) => { if (e.key === 'Escape') setIsPauseMenuOpen(p => !p); };
         window.addEventListener('keydown', handleEsc);
 
-        return () => {
-            clearInterval(clockTimer);
-            clearInterval(energyTimer);
-            clearInterval(systemTimer);
-            if (onboardTimer) clearTimeout(onboardTimer);
-            window.removeEventListener('keydown', handleEsc);
-        };
-    }, [gameState, userData?.id, hasOnboarded, windows]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // --- 6.5 AUTO END DAY เมื่อถึง 21:00 ---
-    useEffect(() => {
-        if (gameState !== "DESKTOP") return;
-        if (gameMinutes >= 720 && !isEndingDay) {
-            handleShutdown(false); // จบวันปกติ
-        }
-    }, [gameMinutes, gameState]);
+        return () => { clearInterval(clockTimer); clearInterval(energyTimer); clearInterval(systemTimer); if (onboardTimer) clearTimeout(onboardTimer); window.removeEventListener('keydown', handleEsc); };
+    }, [gameState, userData?.id, hasOnboarded, windows]);
 
     // --- 7. FUNCTIONS ---
     const openApp = (appId, title, type, params = {}) => {
@@ -258,74 +176,13 @@ export default function DesktopPage() {
     const handleDropOnFolder = (fid, d) => { if (d?.fileId && d.fileId !== fid) handleMoveFile(d.fileId, fid); };
     const handleDeleteFromDesktop = () => { if (contextMenu.targetFile) handleDeleteFile(contextMenu.targetFile.id); setContextMenu({ ...contextMenu, visible: false }); };
 
-    const handleShutdown = async (forced = false) => {
-        if (isEndingDay) return;
-        setIsEndingDay(true);
-        const uid = userData?.user_id || userData?.id;
-        try {
-            const res = await axios.post('http://localhost:3001/simulation/next-day', { userId: uid });
-            const data = res.data;
-
-            if (data.gameOver) {
-                // Game Over
-                setDailySummary({
-                    gameOver: true,
-                    finalDay: data.finalDay,
-                    finalMoney: data.finalMoney,
-                    jobsCompleted: data.jobsCompleted,
-                    reason: data.reason,
-                    events: [`💀 ${data.reason}`],
-                    earned: 0, spent: 0,
-                    rentDue: true, rentPaid: false, rentDeducted: 0,
-                    daysUntilRent: 0, day: data.finalDay
-                });
-                setGameState("GAME_OVER");
-                return;
-            }
-
-            // Build events list
-            const events = [...(data.summary.rentEvents || [])];
-            if (forced) events.push("⚠️ หมดพลังงาน — บันทึกข้อมูลบางส่วนอาจหาย");
-            if (data.summary.todayJobsDone > 0)
-                events.push(`✅ ส่งงานวันนี้ ${data.summary.todayJobsDone} งาน`);
-            if (events.length === 0)
-                events.push("📝 วันนี้ยังไม่ได้ส่งงาน — ค่าเช่ากำลังใกล้เข้ามา!");
-
-            setDailySummary({
-                gameOver: false,
-                earned: data.summary.todayEarned,
-                spent: data.rentDeducted,
-                events,
-                rentDue: data.rentDue,
-                rentPaid: data.rentPaid,
-                rentDeducted: data.rentDeducted,
-                daysUntilRent: data.daysUntilRent,
-                day: data.summary.day,
-                newDay: data.newDay,
-                money: data.money,
-            });
-            // อัปเดต simState ทันที
-            setSimState(prev => ({ ...prev, current_day: data.newDay, sim_money: data.money }));
-            setGameState("SUMMARY");
-        } catch (err) {
-            console.error("❌ next-day error:", err);
-            // Fallback: ถ้า server ล่ม ให้ข้ามวันโดยไม่เช็คค่าเช่า
-            setDailySummary({
-                gameOver: false, earned: 0, spent: 0,
-                events: ["⚠️ ไม่สามารถเชื่อมต่อ server ได้"],
-                rentDue: false, rentPaid: false, rentDeducted: 0, daysUntilRent: 7,
-                day: day
-            });
-            setGameState("SUMMARY");
-        } finally {
-            setIsEndingDay(false);
-        }
+    const handleShutdown = (forced = false) => {
+        const earned = Math.floor(Math.random() * 800) + 200; const cost = Math.random() > 0.5 ? 150 : 0; const events = [];
+        if (forced) events.push("⚠️ หมดแรงสลบคาคอม (-10% พลังงานวันพรุ่งนี้)");
+        if (cost > 0) events.push(`☕ ค่ากาแฟและขนม (-${cost} THB)`); else events.push("✨ วันนี้ประหยัดเงินได้ดีมาก!");
+        setDailySummary({ earned, spent: cost, events }); setGameState("SUMMARY");
     };
-    const startNextDay = () => {
-        setGameMinutes(0);   // reset เวลาเกมเป็น 09:00
-        setEnergy(100);
-        setGameState("DESKTOP");
-    };
+    const startNextDay = () => { setDay(d => d + 1); setEnergy(100); setGameState("DESKTOP"); };
     const handleAcceptJob = (job) => setActiveJob(job);
     const handleJobComplete = () => { setActiveJob(null); closeApp('code'); };
 
@@ -336,10 +193,7 @@ export default function DesktopPage() {
             case 'code': return <CodeEditor files={userFiles} folderId={win.params?.folderId} onCreateFile={handleCreateFile} onDeleteFile={handleDeleteFile} onUpdateFile={handleUpdateFile} />;
             case 'notepad': const nf = userFiles.find(f => f.id === win.params?.fileId); return <Notepad fileId={win.params?.fileId} fileName={nf?.name || 'Untitled'} content={nf?.content || ''} onSave={handleUpdateFile} />;
             case 'mail': return <EmailClient />;
-            case 'jobs': return <JobPlatform 
-                onAcceptJob={handleAcceptJob} 
-                userData={{ ...userData, id: userData?.user_id || userData?.id }} 
-                files={userFiles} />;
+            case 'jobs': return <JobPlatform onAcceptJob={handleAcceptJob} userData={userData} files={userFiles} />;
             default: return <div className="p-4 text-t-muted">Unknown app</div>;
         }
     };
@@ -418,56 +272,6 @@ export default function DesktopPage() {
                 </div>
                 <div className="absolute bottom-8 text-t-muted text-sm font-mono">
                     {new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                    <span className="ml-2 opacity-50">— Day {day}</span>
-                </div>
-            </div>
-        );
-    }
-
-    // =============================================
-    // RENDER: DAILY SUMMARY
-    // =============================================
-    // =============================================
-    // RENDER: GAME OVER
-    // =============================================
-    if (gameState === "GAME_OVER") {
-        return (
-            <div className="h-screen flex items-center justify-center relative overflow-hidden transition-colors duration-300">
-                <div className="absolute inset-0 bg-black pointer-events-none"></div>
-                <div className="relative z-10 text-center animate-scale-in max-w-lg w-full px-6">
-                    <div className="text-8xl mb-6 animate-bounce">💀</div>
-                    <h1 className="text-5xl font-black text-red-500 mb-2 tracking-wider uppercase">Game Over</h1>
-                    <p className="text-red-300 text-lg mb-8">{dailySummary.reason}</p>
-
-                    <div className="bg-gray-900 border border-red-900/50 rounded-2xl p-6 mb-8 text-left space-y-3">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">อยู่รอดมาได้</span>
-                            <span className="text-white font-bold">{dailySummary.finalDay} วัน</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">เงินสุดท้าย</span>
-                            <span className="text-red-400 font-bold">{(dailySummary.finalMoney || 0).toLocaleString()} ฿</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-gray-400">งานที่ทำสำเร็จ</span>
-                            <span className="text-white font-bold">{dailySummary.jobsCompleted || 0} งาน</span>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={async () => {
-                            const uid = userData?.user_id || userData?.id;
-                            await axios.post('http://localhost:3001/simulation/new-game', { userId: uid });
-                            setSimState(null);
-                            setEnergy(100);
-                            setGameState("DESKTOP");
-                        }}
-                        className="w-full py-4 rounded-xl font-black text-lg text-white uppercase tracking-wider
-                            bg-red-600 hover:bg-red-500 hover:shadow-[0_0_30px_rgba(239,68,68,0.5)]
-                            transition-all duration-300 active:scale-[0.98]"
-                    >
-                        🔄 เริ่มใหม่
-                    </button>
                 </div>
             </div>
         );
@@ -477,7 +281,6 @@ export default function DesktopPage() {
     // RENDER: DAILY SUMMARY
     // =============================================
     if (gameState === "SUMMARY") {
-        const netBalance = (dailySummary.earned || 0) - (dailySummary.rentDeducted || 0);
         return (
             <div className="h-screen flex items-center justify-center relative overflow-hidden transition-colors duration-300">
                 <div className="absolute inset-0 bg-animated-gradient pointer-events-none"></div>
@@ -486,58 +289,33 @@ export default function DesktopPage() {
                 <div className="glass-panel p-8 rounded-2xl max-w-lg w-full relative z-10 animate-scale-in shadow-[0_0_40px_var(--t-glow)]">
                     <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-1.5 rounded-full
                         bg-gradient-to-r from-cat-orange to-cat-amber text-black font-black text-sm tracking-wider
-                        shadow-[0_0_20px_rgba(249,115,22,0.4)] animate-bounce-in whitespace-nowrap">
-                        DAY {dailySummary.day} COMPLETE! 🐱
+                        shadow-[0_0_20px_rgba(249,115,22,0.4)] animate-bounce-in">
+                        DAY {day} COMPLETE! 🐱
                     </div>
 
-                    <h1 className="text-2xl font-black text-center mb-6 mt-4 text-t-text tracking-wider uppercase">Daily Report</h1>
+                    <h1 className="text-2xl font-black text-center mb-8 mt-4 text-t-text tracking-wider uppercase">Daily Report</h1>
 
-                    <div className="space-y-3 mb-6">
-                        {/* รายรับวันนี้ */}
+                    <div className="space-y-4 mb-8">
                         <div className="flex justify-between items-center p-3 rounded-xl bg-t-success-soft border border-t-success/20">
-                            <span className="text-t-text-soft text-sm">รายรับวันนี้</span>
-                            <span className="text-t-success font-bold text-lg">+{(dailySummary.earned || 0).toLocaleString()} ฿</span>
+                            <span className="text-t-text-soft">Income</span>
+                            <span className="text-t-success font-bold text-lg">+{dailySummary.earned} THB</span>
+                        </div>
+                        <div className="flex justify-between items-center p-3 rounded-xl bg-t-danger-soft border border-t-danger/20">
+                            <span className="text-t-text-soft">Expenses</span>
+                            <span className="text-t-danger font-bold text-lg">-{dailySummary.spent} THB</span>
                         </div>
 
-                        {/* ค่าเช่า (แสดงเฉพาะวันที่ถึงกำหนด) */}
-                        {dailySummary.rentDue && (
-                            <div className={`flex justify-between items-center p-3 rounded-xl border ${
-                                dailySummary.rentPaid
-                                    ? 'bg-t-success-soft border-t-success/20'
-                                    : 'bg-t-danger-soft border-t-danger/20'
-                            }`}>
-                                <span className="text-t-text-soft text-sm">
-                                    {dailySummary.rentPaid ? '🏠 จ่ายค่าเช่าแล้ว' : '🏠 ค่าเช่า'}
-                                </span>
-                                <span className={`font-bold text-lg ${dailySummary.rentPaid ? 'text-t-success' : 'text-t-danger'}`}>
-                                    -{(dailySummary.rentDeducted || RENT_AMOUNT).toLocaleString()} ฿
-                                </span>
-                            </div>
-                        )}
-
-                        {/* Events log */}
-                        <div className="p-4 rounded-xl text-sm text-t-text-soft space-y-1.5 border border-t-border" style={{ background: 'var(--t-input)' }}>
+                        <div className="p-4 rounded-xl text-sm text-t-text-soft space-y-1 border border-t-border" style={{ background: 'var(--t-input)' }}>
                             {dailySummary.events.map((e, i) => <div key={i}>{e}</div>)}
                             <div className="text-cat-orange/60 text-xs mt-2 italic">เหมียว~ วันนี้ทำงานเก่งมาก!</div>
                         </div>
 
-                        {/* เงินคงเหลือ + ค่าเช่าถัดไป */}
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="p-3 rounded-xl bg-t-card border border-t-border text-center">
-                                <div className="text-xs text-t-muted uppercase tracking-widest mb-1">เงินปัจจุบัน</div>
-                                <div className="text-xl font-black text-t-text">
-                                    {(dailySummary.money ?? currentMoney).toLocaleString()}
-                                    <span className="text-sm font-normal text-t-muted ml-1">฿</span>
-                                </div>
+                        <div className="p-4 rounded-xl bg-t-danger-soft border border-t-danger/20 text-center">
+                            <div className="text-xs text-t-danger uppercase tracking-widest mb-1">Rent Due In</div>
+                            <div className="text-4xl font-black text-t-text">{Math.max(0, RENT_DUE_DAY - day)}
+                                <span className="text-lg font-normal text-t-muted ml-2">DAYS</span>
                             </div>
-                            <div className="p-3 rounded-xl bg-t-danger-soft border border-t-danger/20 text-center">
-                                <div className="text-xs text-t-danger uppercase tracking-widest mb-1">ค่าเช่าใน</div>
-                                <div className="text-xl font-black text-t-text">
-                                    {dailySummary.daysUntilRent}
-                                    <span className="text-sm font-normal text-t-muted ml-1">วัน</span>
-                                </div>
-                                <div className="text-[10px] text-t-danger mt-0.5">{RENT_AMOUNT.toLocaleString()} ฿</div>
-                            </div>
+                            <div className="text-xs text-t-danger mt-1">Amount: {RENT_AMOUNT.toLocaleString()} THB</div>
                         </div>
                     </div>
 
@@ -545,7 +323,7 @@ export default function DesktopPage() {
                         className="w-full py-4 rounded-xl font-bold text-lg text-white uppercase tracking-wider
                         bg-t-accent hover:bg-t-accent-hover hover:shadow-[0_0_25px_var(--t-glow)]
                         transition-all duration-300 active:scale-[0.98]">
-                        Start Day {(dailySummary.newDay || day + 1)}
+                        Start Day {day + 1}
                     </button>
                 </div>
             </div>
@@ -645,12 +423,7 @@ export default function DesktopPage() {
                     </div>
                     <div className="p-3 border-t border-t-border flex justify-between">
                         <button onClick={() => window.location.reload()} className="flex items-center gap-2 px-3 py-2 hover:bg-t-card-hover rounded-lg text-cat-amber text-sm font-medium transition-colors"><RefreshCw size={14} /> Restart</button>
-                        <button 
-                        onClick={() => handleShutdown(false)} 
-                        disabled={isEndingDay}
-                        className={`flex items-center gap-2 px-3 py-2 hover:bg-t-danger-soft rounded-lg text-t-danger text-sm font-medium transition-colors ${isEndingDay ? 'opacity-50 cursor-wait' : ''}`}>
-                        <Power size={14} /> {isEndingDay ? 'กำลังบันทึก...' : 'Sleep'}
-                    </button>
+                        <button onClick={() => handleShutdown(false)} className="flex items-center gap-2 px-3 py-2 hover:bg-t-danger-soft rounded-lg text-t-danger text-sm font-medium transition-colors"><Power size={14} /> Sleep</button>
                     </div>
                 </div>
             )}
@@ -686,44 +459,17 @@ export default function DesktopPage() {
                                 style={{ width: `${energy}%` }} />
                         </div>
                     </div>
-                    {/* แบตเตอรี่จาก simState */}
                     <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono
-                        ${(simState?.battery_percent || 100) < 20 ? 'bg-t-danger-soft text-t-danger' : 'bg-t-card text-t-text-soft'}`}>
-                        <span>{simState?.battery_percent || 100}%</span>
-                        {simState?.is_plugged_in ? <BatteryCharging size={14} className="text-t-success" /> : <Battery size={14} />}
-                    </div>
-                    {/* เงินปัจจุบัน */}
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono bg-t-success-soft text-t-success border border-t-success/20">
-                        <span className="font-bold">฿{currentMoney.toLocaleString()}</span>
+                        ${userData?.battery_current_charge < 20 ? 'bg-t-danger-soft text-t-danger' : 'bg-t-card text-t-text-soft'}`}>
+                        <span>{userData?.battery_current_charge || 100}%</span>
+                        {userData?.is_plugged_in ? <BatteryCharging size={14} className="text-t-success" /> : <Battery size={14} />}
                     </div>
                     <div className="w-px h-6 bg-t-border"></div>
                     <div className="flex items-center gap-2.5 text-t-muted px-1"><Wifi size={13} /><Volume2 size={13} /></div>
                     <div className="w-px h-6 bg-t-border"></div>
-                    <div className="flex flex-col items-end justify-center leading-tight px-1.5 h-full cursor-default min-w-[64px]">
-                        {/* เวลาในเกม */}
-                        <div className={`text-xs font-bold font-mono tracking-wider ${
-                            gameTime.isNight   ? 'text-purple-400' :
-                            gameTime.isEvening ? 'text-orange-400' :
-                            'text-t-text'
-                        }`}>
-                            {gameTime.display}
-                            <span className="ml-1 text-[9px] font-normal opacity-60">
-                                {gameTime.isNight ? '🌙' : gameTime.isEvening ? '🌆' : '☀️'}
-                            </span>
-                        </div>
-                        {/* Day N */}
-                        <div className="text-[9px] text-t-muted font-mono">Day {day}</div>
-                        {/* Progress bar เวลา */}
-                        <div className="w-full h-0.5 rounded-full mt-0.5 overflow-hidden" style={{ background: 'var(--t-border)' }}>
-                            <div
-                                className={`h-full rounded-full transition-all duration-[3000ms] ease-linear ${
-                                    gameTime.isNight   ? 'bg-purple-400' :
-                                    gameTime.isEvening ? 'bg-orange-400' :
-                                    'bg-t-accent'
-                                }`}
-                                style={{ width: `${gameTime.progress}%` }}
-                            />
-                        </div>
+                    <div className="flex flex-col items-end justify-center leading-tight text-t-text px-1.5 h-full cursor-default">
+                        <div className="text-xs font-medium">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="text-[9px] text-t-muted">{currentTime.toLocaleDateString()}</div>
                     </div>
                 </div>
             </div>

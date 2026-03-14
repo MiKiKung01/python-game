@@ -1,25 +1,29 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Monitor, Globe, Settings, Trophy, LogOut, Sparkles, Palette, BookOpen } from "lucide-react";
+import { Monitor, Globe, Settings, Trophy, Sparkles, Palette, BookOpen, X, Volume2, User } from "lucide-react";
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../contexts/ThemeContext';
 
 export default function MainMenu() {
     const navigate = useNavigate();
     const { theme, setTheme, themes } = useTheme();
+    const { t, i18n } = useTranslation();
     const [mounted, setMounted] = useState(false);
     const [showThemePicker, setShowThemePicker] = useState(false);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [settingData, setSettingData] = useState({ newName: JSON.parse(localStorage.getItem('user'))?.username || '', volume: localStorage.getItem('musicVolume') || 50 });
 
     useEffect(() => {
         setTimeout(() => setMounted(true), 100);
     }, []);
 
     const menus = [
-        { name: "เริ่มการจำลอง", sub: "Simulation", icon: <Monitor size={24} />, color: "from-[var(--t-accent)] to-blue-600", action: () => navigate("/simulation") },
-        { name: "โหมดออนไลน์", sub: "Online", icon: <Globe size={24} />, color: "from-[var(--t-accent-2)] to-purple-600", action: () => navigate("/online") },
-        { name: "ธีม", sub: "Theme", icon: <Palette size={24} />, color: "from-cat-orange to-cat-amber", action: () => setShowThemePicker(true) },
-        { name: "การตั้งค่า", sub: "Settings", icon: <Settings size={24} />, color: "from-slate-500 to-slate-700", action: () => alert("เปิด Modal ตั้งค่า") },
-        { name: "ความสำเร็จ", sub: "Achievements", icon: <Trophy size={24} />, color: "from-cat-orange to-cat-amber", action: () => navigate("/achievements") },
-        { name: "โหมดเรียน", sub: "Study Mode", icon: <BookOpen size={24} />, color: "from-emerald-500 to-green-600", action: () => navigate("/learn") },
+        { name: t('mainMenu.simulation'), sub: "Simulation", icon: <Monitor size={24} />, color: "from-[var(--t-accent)] to-blue-600", action: () => navigate("/simulation") },
+        { name: t('mainMenu.online'), sub: "Online", icon: <Globe size={24} />, color: "from-[var(--t-accent-2)] to-purple-600", action: () => navigate("/online") },
+        { name: t('mainMenu.theme'), sub: "Theme", icon: <Palette size={24} />, color: "from-cat-orange to-cat-amber", action: () => setShowThemePicker(true) },
+        { name: t('mainMenu.settings'), sub: "Settings", icon: <Settings size={24} />, color: "from-slate-500 to-slate-700", action: () => setShowSettingsModal(true) },
+        { name: t('mainMenu.achievements'), sub: "Achievements", icon: <Trophy size={24} />, color: "from-cat-orange to-cat-amber", action: () => navigate("/achievements") },
+        { name: t('mainMenu.studyMode'), sub: "Study Mode", icon: <BookOpen size={24} />, color: "from-emerald-500 to-green-600", action: () => navigate("/learn") },
     ];
 
     return (
@@ -61,7 +65,7 @@ export default function MainMenu() {
 
                 <div className="flex items-center justify-center gap-2 mt-3 text-t-muted text-sm">
                     <Sparkles size={14} className="text-t-accent" />
-                    <span className="tracking-widest uppercase">The Developer Simulation Game</span>
+                    <span className="tracking-widest uppercase">{t('mainMenu.subtitle')}</span>
                     <Sparkles size={14} className="text-t-accent" />
                 </div>
             </div>
@@ -90,9 +94,9 @@ export default function MainMenu() {
             {/* Footer */}
             <div className={`mt-8 text-t-muted text-xs tracking-wider transition-all duration-1000 delay-700
                 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-                <span>v0.1.0</span>
+                <span>{t('mainMenu.version')}</span>
                 <span className="mx-2">•</span>
-                <span>Python Coder © 2026</span>
+                <span>{t('mainMenu.copyright')}</span>
                 <span className="ml-2 text-cat-orange/40">😺</span>
             </div>
             </div>
@@ -104,9 +108,9 @@ export default function MainMenu() {
                     <div className="glass-panel rounded-2xl p-6 w-full max-w-sm animate-scale-in border border-t-border"
                         onClick={e => e.stopPropagation()}>
                         <h2 className="text-xl font-black text-t-text mb-1 flex items-center gap-2">
-                            <Palette size={20} className="text-t-accent" /> เลือกธีม
+                            <Palette size={20} className="text-t-accent" /> {t('mainMenu.themeModal.title')}
                         </h2>
-                        <p className="text-t-muted text-xs mb-4">เลือกธีมที่ชอบ • ร้านค้าธีมจะเปิดในอนาคต</p>
+                        <p className="text-t-muted text-xs mb-4">{t('mainMenu.themeModal.subtitle')}</p>
                         <div className="space-y-2">
                             {themes.map(t => (
                                 <button key={t.id} onClick={() => { setTheme(t.id); setShowThemePicker(false); }}
@@ -124,8 +128,45 @@ export default function MainMenu() {
                             ))}
                         </div>
                         <div className="mt-4 p-3 rounded-xl bg-t-accent-soft border border-t-border-accent/30 text-center">
-                            <p className="text-t-accent text-xs font-bold">🏪 ร้านค้าธีม Coming Soon!</p>
-                            <p className="text-t-muted text-[10px] mt-1">ซื้อธีมเพิ่มเติมได้ในอนาคต</p>
+                            <p className="text-t-accent text-xs font-bold">{t('mainMenu.themeModal.storeComingSoon')}</p>
+                            <p className="text-t-muted text-[10px] mt-1">{t('mainMenu.themeModal.storeDesc')}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Settings Modal */}
+            {showSettingsModal && (
+                <div className="fixed inset-0 bg-t-overlay backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+                    <div className="glass-panel rounded-2xl p-6 w-full max-w-md relative animate-scale-in border border-t-border">
+                        <button onClick={() => setShowSettingsModal(false)} className="absolute top-4 right-4 text-t-muted hover:text-t-danger transition-colors"><X size={24} /></button>
+                        <h2 className="text-xl font-black text-t-text mb-6 flex items-center gap-2"><Settings size={20} className="text-t-accent" /> {t('mainMenu.settingsModal.title')}</h2>
+                        <div className="space-y-6">
+                            
+                            <div>
+                                <label className="text-t-accent text-xs font-bold flex items-center gap-2 tracking-widest mb-2">
+                                    <Globe size={14} /> {t('mainMenu.settingsModal.language')}
+                                </label>
+                                <div className="flex gap-2">
+                                    <button 
+                                        className={`flex-1 py-3 px-4 rounded-xl border text-sm font-bold transition-all ${i18n.language === 'en' ? 'bg-t-accent text-white border-t-accent shadow-[0_0_15px_var(--t-glow)]' : 'bg-t-input border-t-border text-t-text hover:bg-t-card-hover'}`}
+                                        onClick={() => i18n.changeLanguage('en')}
+                                    >🇬🇧 {t('mainMenu.settingsModal.englishBtn', 'English')}</button>
+                                    <button 
+                                        className={`flex-1 py-3 px-4 rounded-xl border text-sm font-bold transition-all ${i18n.language === 'th' ? 'bg-t-accent text-white border-t-accent shadow-[0_0_15px_var(--t-glow)]' : 'bg-t-input border-t-border text-t-text hover:bg-t-card-hover'}`}
+                                        onClick={() => i18n.changeLanguage('th')}
+                                    >🇹🇭 {t('mainMenu.settingsModal.thaiBtn', 'ภาษาไทย')}</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-cat-amber text-xs font-bold flex items-center gap-2 tracking-widest"><Volume2 size={14} /> {t('mainMenu.settingsModal.musicVolume')}</label>
+                                <input type="range" min="0" max="100" className="w-full mt-2 accent-[var(--t-accent)] cursor-pointer" value={settingData.volume}
+                                    onChange={(e) => { const vol = e.target.value; setSettingData({ ...settingData, volume: vol }); const m = document.getElementById('bg-music'); if (m) { m.volume = vol / 100; if (m.paused) m.play(); } localStorage.setItem('musicVolume', vol); }} />
+                                <div className="text-right text-t-text font-bold text-sm">{settingData.volume}%</div>
+                            </div>
+                            
+                            <button onClick={() => setShowSettingsModal(false)} className="w-full bg-t-accent hover:bg-t-accent-hover text-white font-bold py-3 rounded-xl transition-all duration-300 hover:shadow-[0_0_20px_var(--t-glow)] active:scale-[0.98]">{t('mainMenu.settingsModal.saveChanges')}</button>
                         </div>
                     </div>
                 </div>

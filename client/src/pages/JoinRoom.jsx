@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Lock, User, Search, Frown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export default function JoinRoom() {
     const [rooms, setRooms] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [mounted, setMounted] = useState(false);
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     useEffect(() => { setTimeout(() => setMounted(true), 100); }, []);
     useEffect(() => {
@@ -21,10 +23,10 @@ export default function JoinRoom() {
 
             <div className="max-w-6xl mx-auto relative z-10">
                 <div className={`flex flex-col md:flex-row justify-between items-center mb-8 gap-4 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-                    <h1 className="text-3xl font-black"><span className="bg-gradient-to-r from-t-accent to-t-accent-2 bg-clip-text text-transparent">SERVER BROWSER</span></h1>
+                    <h1 className="text-3xl font-black"><span className="bg-gradient-to-r from-t-accent to-t-accent-2 bg-clip-text text-transparent">{t('joinRoom.title')}</span></h1>
                     <div className="relative w-full md:w-96">
                         <Search className="absolute left-4 top-3 text-t-muted" size={18} />
-                        <input type="text" placeholder="ค้นหาชื่อห้อง..."
+                        <input type="text" placeholder={t('joinRoom.searchPlaceholder', "ค้นหาชื่อห้อง...")}
                             className="w-full bg-t-input border border-t-border rounded-xl py-2.5 pl-11 pr-4 text-t-text text-sm focus:border-t-border-accent focus:outline-none focus:shadow-[0_0_15px_var(--t-glow)] transition-all placeholder-t-muted"
                             onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
@@ -33,8 +35,8 @@ export default function JoinRoom() {
                 {rooms.length === 0 ? (
                     <div className={`flex flex-col items-center justify-center h-64 glass-panel rounded-2xl border border-dashed border-t-border transition-all duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
                         <Frown size={48} className="text-t-muted mb-4 animate-float" />
-                        <h3 className="text-xl text-t-text-soft font-bold">ไม่พบห้องที่ค้นหา</h3>
-                        <p className="text-t-muted text-sm">"ไม่มีใครสร้างห้อง" หรือลองเปลี่ยนคำค้นหา</p>
+                        <h3 className="text-xl text-t-text-soft font-bold">{t('joinRoom.noRooms')}</h3>
+                        <p className="text-t-muted text-sm">{t('joinRoom.noRoomsSub')}</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -53,7 +55,7 @@ export default function JoinRoom() {
                                 </div>
                                 <button onClick={() => navigate(`/lobby/${room.room_id}`)}
                                     className="w-full py-2.5 rounded-xl text-white font-bold text-sm relative z-10 bg-t-accent hover:bg-t-accent-hover hover:shadow-[0_0_15px_var(--t-glow)] transition-all duration-300 active:scale-[0.98]">
-                                    JOIN GAME
+                                    {t('joinRoom.joinBtn')}
                                 </button>
                             </div>
                         ))}
@@ -61,7 +63,7 @@ export default function JoinRoom() {
                 )}
 
                 <button onClick={() => navigate('/online')} className={`mt-8 text-t-muted hover:text-t-accent text-sm transition-colors duration-300 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-                    ← กลับไปหน้าเมนู
+                    ← {t('joinRoom.back')}
                 </button>
             </div>
         </div>

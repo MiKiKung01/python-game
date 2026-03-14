@@ -183,7 +183,7 @@ function AppContent() {
             <Route path="/lobby/:roomId" element={<Lobby />} />
             <Route path="/join-room" element={<JoinRoom />} />
             <Route path="/achievements" element={<Achievements />} />
-            <Route path="/simulation" element={<MainMenu />} />
+            <Route path="/simulation" element={<DesktopPage />} />
           </Routes>
         </motion.div>
       </AnimatePresence>

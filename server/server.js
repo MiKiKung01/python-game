@@ -1069,6 +1069,262 @@ app.post('/api/assessment/submit', async (req, res) => {
 });
 
 // ==========================================
+// 7.5 API: Day Progression & Game State
+// ==========================================
+
+/**
+ * GET /simulation/state/:userId
+ * ดึง state ครบชุดสำหรับ Desktop (เงิน, วัน, ค่าเช่า, events)
+ * แก้ bug: ใช้ user_id ตรงๆ แทน userData.id ที่ client ส่งมาผิด
+ */
+app.get('/simulation/state/:userId', async (req, res) => {
+    const { userId } = req.params;
+    try {
+        // ดึง save หลัก
+        const [saves] = await db.execute(`
+            SELECT s.*, l.name as location_name, l.power_reliability, l.internet_speed
+            FROM simulation_saves s
+            LEFT JOIN locations l ON s.current_location_id = l.location_id
+            WHERE s.user_id = ? AND s.is_active = 1
+            LIMIT 1
+        `, [userId]);
+
+        if (saves.length === 0) {
+            // Auto-create save ถ้าไม่มี
+            const [result] = await db.execute(
+                'INSERT INTO simulation_saves (user_id, save_name, sim_money) VALUES (?, ?, ?)',
+                [userId, 'Auto Save', 0]
+            );
+            return res.json({
+                save_id: result.insertId,
+                sim_money: 0,
+                current_day: 1,
+                current_hour: 8.0,
+                battery_percent: 100,
+                is_plugged_in: 1,
+                jobs_completed: 0,
+                total_earned: 0,
+                active_events: []
+            });
+        }
+
+        const save = saves[0];
+        if (typeof save.environment_status === 'string') {
+            try { save.environment_status = JSON.parse(save.environment_status); } catch { save.environment_status = {}; }
+        }
+
+        // ดึง active events
+        const [activeEvents] = await db.execute(`
+            SELECT ae.*, re.event_key, re.name, re.description, re.severity, re.effect_type
+            FROM simulation_active_events ae
+            JOIN random_events re ON ae.event_id = re.event_id
+            WHERE ae.save_id = ? AND ae.is_resolved = 0
+        `, [save.save_id]);
+
+        // ดึงงานที่กำลังทำอยู่ (ACTIVE) เพื่อแสดงในหน้า Desktop
+        const [activeJobs] = await db.execute(`
+            SELECT c.contract_id, c.title, c.reward, c.difficulty, uc.accepted_at
+            FROM user_contracts uc
+            JOIN contracts c ON uc.contract_id = c.contract_id
+            WHERE uc.user_id = ? AND uc.status = 'ACTIVE'
+        `, [userId]);
+
+        res.json({
+            ...save,
+            active_events: activeEvents,
+            active_jobs: activeJobs
+        });
+    } catch (err) {
+        console.error('❌ /simulation/state error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /simulation/next-day
+ * จบวันปัจจุบัน — คำนวณรายรับ/รายจ่าย, เช็คค่าเช่า, เช็ค Game Over
+ * Body: { userId }
+ * Returns: { newDay, money, rentDue, rentPaid, gameOver, summary }
+ */
+app.post('/simulation/next-day', async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. ดึง save ปัจจุบัน
+        const [saves] = await connection.execute(
+            'SELECT * FROM simulation_saves WHERE user_id = ? AND is_active = 1 LIMIT 1',
+            [userId]
+        );
+        if (saves.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ error: 'No active save' });
+        }
+        const save = saves[0];
+        const currentDay = save.current_day;
+        const newDay = currentDay + 1;
+
+        // Config ค่าเช่า (ทุก 7 วัน)
+        const RENT_AMOUNT = 3000;
+        const RENT_CYCLE = 7;
+
+        // 2. ดึงงานที่เพิ่งส่ง (COMPLETED วันนี้) เพื่อสรุปรายรับ
+        //    — งานที่ submit ไปแล้วจะถูกนับใน total_earned โดย /jobs/submit อยู่แล้ว
+        //    — ดึงแค่ summary ว่าวันนี้ทำงานไปกี่งาน ได้เงินเท่าไร
+        const [completedToday] = await connection.execute(`
+            SELECT COUNT(*) as count, COALESCE(SUM(c.reward), 0) as earned
+            FROM user_contracts uc
+            JOIN contracts c ON uc.contract_id = c.contract_id
+            WHERE uc.user_id = ? AND uc.status = 'COMPLETED'
+            AND DATE(uc.accepted_at) = CURDATE()
+        `, [userId]);
+
+        const todayEarned = parseFloat(completedToday[0].earned) || 0;
+        const todayJobsDone = completedToday[0].count || 0;
+
+        // 3. เช็คว่าถึงวันจ่ายค่าเช่าหรือเปล่า (ทุก 7 วัน)
+        let rentDue = false;
+        let rentPaid = false;
+        let rentDeducted = 0;
+        let moneyAfterRent = parseFloat(save.sim_money);
+        const rentEvents = [];
+
+        if (newDay % RENT_CYCLE === 1 || currentDay % RENT_CYCLE === 0) {
+            // ถึงวันจ่ายค่าเช่าแล้ว
+            rentDue = true;
+            if (moneyAfterRent >= RENT_AMOUNT) {
+                // จ่ายได้
+                rentDeducted = RENT_AMOUNT;
+                moneyAfterRent -= RENT_AMOUNT;
+                rentPaid = true;
+
+                // บันทึก expense ใน financial_ledger
+                await connection.execute(
+                    'INSERT INTO financial_ledger (user_id, type, category, amount, description) VALUES (?, ?, ?, ?, ?)',
+                    [userId, 'EXPENSE', 'RENT', RENT_AMOUNT, `ค่าเช่าวันที่ ${currentDay}`]
+                );
+                // อัปเดตยอดเงินและ total_spent
+                await connection.execute(
+                    'UPDATE simulation_saves SET sim_money = ?, total_spent = total_spent + ? WHERE save_id = ?',
+                    [moneyAfterRent, RENT_AMOUNT, save.save_id]
+                );
+
+                rentEvents.push(`🏠 จ่ายค่าเช่า -${RENT_AMOUNT.toLocaleString()} ฿`);
+            } else {
+                // เงินไม่พอจ่ายค่าเช่า → GAME OVER
+                await connection.execute(
+                    'UPDATE simulation_saves SET is_active = 0 WHERE save_id = ?',
+                    [save.save_id]
+                );
+                // บันทึก log
+                await connection.execute(
+                    'INSERT INTO simulation_logs (user_id, save_id, event_type, message) VALUES (?, ?, ?, ?)',
+                    [userId, save.save_id, 'GAME_OVER', `ไม่มีเงินจ่ายค่าเช่าวันที่ ${currentDay} — Game Over`]
+                );
+                await connection.commit();
+                return res.json({
+                    gameOver: true,
+                    reason: 'ไม่มีเงินจ่ายค่าเช่า',
+                    finalDay: currentDay,
+                    finalMoney: parseFloat(save.sim_money),
+                    jobsCompleted: save.jobs_completed
+                });
+            }
+        }
+
+        // 4. Advance day
+        await connection.execute(
+            `UPDATE simulation_saves 
+             SET current_day = ?, current_hour = 8.0
+             WHERE save_id = ?`,
+            [newDay, save.save_id]
+        );
+
+        // 5. บันทึก log วันใหม่
+        await connection.execute(
+            'INSERT INTO simulation_logs (user_id, save_id, event_type, message) VALUES (?, ?, ?, ?)',
+            [userId, save.save_id, 'NEW_DAY', `เริ่มวันที่ ${newDay}`]
+        );
+
+        // 6. Resolve active events ของวันเก่า
+        await connection.execute(
+            'UPDATE simulation_active_events SET is_resolved = 1 WHERE save_id = ? AND is_resolved = 0',
+            [save.save_id]
+        );
+
+        // 7. สร้าง summary กลับไป
+        const [freshSave] = await connection.execute(
+            'SELECT sim_money, current_day, jobs_completed, total_earned, total_spent FROM simulation_saves WHERE save_id = ?',
+            [save.save_id]
+        );
+
+        await connection.commit();
+
+        // คำนวณวันค่าเช่าถัดไป
+        const daysUntilRent = RENT_CYCLE - (newDay % RENT_CYCLE);
+
+        res.json({
+            gameOver: false,
+            newDay,
+            money: parseFloat(freshSave[0].sim_money),
+            totalEarned: parseFloat(freshSave[0].total_earned),
+            totalSpent: parseFloat(freshSave[0].total_spent),
+            jobsCompleted: freshSave[0].jobs_completed,
+            rentDue,
+            rentPaid,
+            rentDeducted,
+            daysUntilRent: daysUntilRent === 0 ? RENT_CYCLE : daysUntilRent,
+            rentAmount: RENT_AMOUNT,
+            summary: {
+                todayEarned,
+                todayJobsDone,
+                rentEvents,
+                day: currentDay
+            }
+        });
+    } catch (err) {
+        await connection.rollback();
+        console.error('❌ /simulation/next-day error:', err.message);
+        res.status(500).json({ error: err.message });
+    } finally {
+        connection.release();
+    }
+});
+
+/**
+ * POST /simulation/new-game
+ * สร้าง save ใหม่และ reset state ทั้งหมด (ใช้หลัง Game Over)
+ * Body: { userId }
+ */
+app.post('/simulation/new-game', async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    try {
+        // ปิด save เดิมทั้งหมด
+        await db.execute('UPDATE simulation_saves SET is_active = 0 WHERE user_id = ?', [userId]);
+        // ยกเลิกงานค้างทั้งหมด
+        await db.execute(
+            "UPDATE user_contracts SET status = 'FAILED' WHERE user_id = ? AND status = 'ACTIVE'",
+            [userId]
+        );
+        // สร้าง save ใหม่
+        const [result] = await db.execute(
+            `INSERT INTO simulation_saves 
+             (user_id, save_name, sim_money, current_day, current_hour, battery_percent, is_plugged_in, jobs_completed, jobs_failed, total_earned, total_spent)
+             VALUES (?, 'Auto Save', 0, 1, 8.0, 100, 1, 0, 0, 0, 0)`,
+            [userId]
+        );
+        res.json({ success: true, save_id: result.insertId });
+    } catch (err) {
+        console.error('❌ /simulation/new-game error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ==========================================
 // 8. Start Server & Simulation Engine
 // ==========================================
 

@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { User, Crown, CheckCircle, Play } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function Lobby() {
     const { roomId } = useParams();
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const currentUser = JSON.parse(localStorage.getItem('user'));
     const [roomData, setRoomData] = useState(null);
     const [players, setPlayers] = useState([]);
@@ -34,9 +36,9 @@ export default function Lobby() {
     }, [roomId]);
 
     const handleLeave = async () => {
-        if (window.confirm("ต้องการออกจากห้องใช่ไหม?")) {
+        if (window.confirm(t('lobby.leave', "ต้องการออกจากห้องใช่ไหม?"))) {
             try { await axios.post('http://localhost:3001/rooms/leave', { roomId, userId: currentUser.id }); navigate('/online'); }
-            catch { alert("ไม่สามารถออกจากห้องได้ กรุณาลองใหม่"); }
+            catch { alert(t('lobby.errors.leaveFailed', "ไม่สามารถออกจากห้องได้ กรุณาลองใหม่")); }
         }
     };
 
@@ -46,7 +48,7 @@ export default function Lobby() {
             <div className="relative z-10 flex items-center justify-center min-h-screen">
                 <div className="text-center">
                     <div className="w-12 h-12 border-2 border-t-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-t-muted font-mono text-sm">CONNECTING TO LOBBY...</p>
+                    <p className="text-t-muted font-mono text-sm">{t('lobby.waiting', 'CONNECTING TO LOBBY...')}</p>
                 </div>
             </div>
         </div>
@@ -61,10 +63,10 @@ export default function Lobby() {
             <div className={`w-full max-w-5xl glass-panel rounded-2xl p-6 relative z-10 border border-t-border transition-all duration-700 ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
                 <div className="flex justify-between items-center mb-8 border-b border-t-border pb-4">
                     <div>
-                        <h2 className="text-t-muted text-xs font-bold tracking-widest">CURRENT LOBBY</h2>
+                        <h2 className="text-t-muted text-xs font-bold tracking-widest">{t('lobby.title', 'CURRENT LOBBY')}</h2>
                         <h1 className="text-2xl font-black text-t-text">{roomData.room_name} <span className="text-t-muted text-lg">#{roomId}</span></h1>
                     </div>
-                    <div className="px-4 py-2 rounded-xl bg-t-success-soft text-t-success font-bold text-sm border border-t-success/20">STATUS: {roomData.status}</div>
+                    <div className="px-4 py-2 rounded-xl bg-t-success-soft text-t-success font-bold text-sm border border-t-success/20">{t('lobby.statusLabel', 'STATUS:')} {roomData.status}</div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
@@ -82,7 +84,7 @@ export default function Lobby() {
                                             <User size={32} className="text-white" />
                                         </div>
                                         <div className="text-t-text px-3 py-1 rounded-lg text-sm font-bold max-w-[90%] truncate bg-t-input">
-                                            {p.username} {isMe && <span className="text-t-accent">(YOU)</span>}
+                                            {p.username} {isMe && <span className="text-t-accent">{t('lobby.you', '(YOU)')}</span>}
                                         </div>
                                         <div className="flex gap-2 mt-2">
                                             {isHost && <Crown size={18} className="text-cat-amber animate-float" />}
@@ -90,7 +92,7 @@ export default function Lobby() {
                                         </div>
                                     </>
                                 ) : (
-                                    <span className="text-t-muted font-bold text-sm tracking-wider">EMPTY</span>
+                                    <span className="text-t-muted font-bold text-sm tracking-wider">{t('lobby.emptySlot', 'EMPTY')}</span>
                                 )}
                             </div>
                         );
@@ -98,13 +100,13 @@ export default function Lobby() {
                 </div>
 
                 <div className="flex justify-between items-center p-4 rounded-xl border border-t-border" style={{ background: 'var(--t-input)' }}>
-                    <button onClick={handleLeave} className="px-6 py-3 rounded-xl text-t-danger font-bold text-sm bg-t-danger-soft hover:bg-t-danger/20 border border-t-danger/20 transition-all duration-300 active:scale-95">LEAVE ROOM</button>
+                    <button onClick={handleLeave} className="px-6 py-3 rounded-xl text-t-danger font-bold text-sm bg-t-danger-soft hover:bg-t-danger/20 border border-t-danger/20 transition-all duration-300 active:scale-95">{t('lobby.leave')}</button>
                     {currentUser.id === roomData.host_user_id ? (
                         <button onClick={() => alert("Start Game!")} className="px-8 py-3 rounded-xl font-black text-sm flex items-center gap-2 bg-gradient-to-r from-cat-orange to-cat-amber text-black hover:shadow-[0_0_25px_rgba(249,115,22,0.3)] transition-all duration-300 active:scale-95">
-                            <Play fill="black" size={18} /> START GAME
+                            <Play fill="black" size={18} /> {t('lobby.startGame')}
                         </button>
                     ) : (
-                        <div className="text-t-muted font-bold text-sm animate-pulse">WAITING FOR HOST...</div>
+                        <div className="text-t-muted font-bold text-sm animate-pulse">{t('lobby.waitHost')}</div>
                     )}
                 </div>
             </div>

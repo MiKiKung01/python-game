@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Trophy, Star, ShieldAlert, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 export default function Achievements() {
     const [list, setList] = useState([]);
     const [mounted, setMounted] = useState(false);
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const user = JSON.parse(localStorage.getItem('user'));
 
     useEffect(() => {
@@ -34,7 +36,7 @@ export default function Achievements() {
             </button>
 
             <h1 className={`text-3xl font-black text-center mb-10 relative z-10 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-                <span className="bg-gradient-to-r from-cat-amber via-yellow-400 to-cat-orange bg-clip-text text-transparent">HALL OF FAME</span>
+                <span className="bg-gradient-to-r from-cat-amber via-yellow-400 to-cat-orange bg-clip-text text-transparent">{t('achievements.title', 'HALL OF FAME')}</span>
                 <span className="ml-3 text-lg opacity-50">🏆🐱</span>
             </h1>
 
@@ -63,9 +65,9 @@ export default function Achievements() {
                                 </div>
                                 <div className="text-right min-w-[130px]">
                                     {percent === 0 ? (
-                                        <div className="text-sm text-t-muted italic">0.0%<br />ยังไม่มีใครเคลียร์</div>
+                                        <div className="text-sm text-t-muted italic">0.0%<br />{t('achievements.locked', 'LOCKED')}</div>
                                     ) : (
-                                        <><div className="text-3xl font-black text-t-text">{percent.toFixed(1)}%</div><div className="text-xs text-t-muted uppercase tracking-wider">Completed</div></>
+                                        <><div className="text-3xl font-black text-t-text">{percent.toFixed(1)}%</div><div className="text-xs text-t-muted uppercase tracking-wider">{t('achievements.progress', 'Completed')}</div></>
                                     )}
                                 </div>
                             </div>
